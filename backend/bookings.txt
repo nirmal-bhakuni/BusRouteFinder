@@ -1,0 +1,3 @@
+# Sample bookings - JSON format, one per line
+{"route": "Delhi \u2192 Jaipur \u2192 Udaipur", "user_name": "mn", "seats": 1, "price": 346.5, "timestamp": "2025-11-10T18:11:16.102406"}
+{"route": "Delhi \u2192 Agra \u2192 Mumbai", "user_name": "a", "seats": 1, "price": 720, "timestamp": "2025-11-10T19:10:24.724946"}

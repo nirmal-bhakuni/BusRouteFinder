@@ -1,0 +1,21 @@
+# Sample routes for file-based demo mode
+# Format: from_city|to_city|distance|ticket_price|coords_jsonClement Town|Selection Board Road|0.45|22|[{"lat":30.2670,"lng":78.0070},{"lat":30.2664,"lng":78.0058}]
+Selection Board Road|Turner Road Junction|0.48|23|[{"lat":30.2664,"lng":78.0058},{"lat":30.2675,"lng":78.0103}]
+Turner Road Junction|Prakash Plaza|0.35|17|[{"lat":30.2675,"lng":78.0103},{"lat":30.2661,"lng":78.0082}]
+Prakash Plaza|Bell Road Junction|0.38|19|[{"lat":30.2661,"lng":78.0082},{"lat":30.2667,"lng":78.0110}]
+Bell Road Junction|Gurudwara Rd Market|0.30|15|[{"lat":30.2667,"lng":78.0110},{"lat":30.2662,"lng":78.0045}]
+Gurudwara Rd Market|Lane No 4 (New Basti)|0.40|20|[{"lat":30.2662,"lng":78.0045},{"lat":30.2658,"lng":78.0009}]
+
+Clement Town|Turner Road Junction|0.48|23|[{"lat":30.2670,"lng":78.0070},{"lat":30.2675,"lng":78.0103}]
+Turner Road Junction|Lane No 7 (New Basti)|0.42|21|[{"lat":30.2675,"lng":78.0103},{"lat":30.2655,"lng":78.0012}]
+Lane No 7 (New Basti)|Sahni Confectionery|0.33|16|[{"lat":30.2655,"lng":78.0012},{"lat":30.2668,"lng":78.0099}]
+Sahni Confectionery|Rajput General Store|0.36|18|[{"lat":30.2668,"lng":78.0099},{"lat":30.2665,"lng":78.0115}]
+Rajput General Store|Om Electronics|0.47|22|[{"lat":30.2665,"lng":78.0115},{"lat":30.2663,"lng":78.0056}]
+Om Electronics|Moti Water Shop|0.28|14|[{"lat":30.2663,"lng":78.0056},{"lat":30.2660,"lng":78.0049}]
+
+Clement Town|Lane No 13 (New Basti)|0.44|22|[{"lat":30.2670,"lng":78.0070},{"lat":30.2653,"lng":78.0015}]
+Lane No 13 (New Basti)|Universal Stationers|0.31|15|[{"lat":30.2653,"lng":78.0015},{"lat":30.2669,"lng":78.0101}]
+Universal Stationers|Sinha Dry Goods|0.40|20|[{"lat":30.2669,"lng":78.0101},{"lat":30.2650,"lng":78.0008}]
+Sinha Dry Goods|Amrit Dairy Shop|0.37|19|[{"lat":30.2650,"lng":78.0008},{"lat":30.2666,"lng":78.0112}]
+Amrit Dairy Shop|Green Grocers|0.46|23|[{"lat":30.2666,"lng":78.0112},{"lat":30.2662,"lng":78.0059}]
+Green Grocers|Lane No 9 (New Basti)|0.43|21|[{"lat":30.2662,"lng":78.0059},{"lat":30.2654,"lng":78.0004}]

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Route Finder & Booking</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🚌 Bus Route Finder</span>
+            <a href="admin.html" class="btn btn-light btn-sm">Admin Panel</a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <!-- Search Form -->
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Find Routes</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="searchForm">
+                            <div class="mb-3">
+                                <label for="fromCity" class="form-label">From</label>
+                                <input type="text" class="form-control" id="fromCity" 
+                                       placeholder="e.g., Delhi" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="toCity" class="form-label">To</label>
+                                <input type="text" class="form-control" id="toCity" 
+                                       placeholder="e.g., Mumbai" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                Search Routes
+                            </button>
+                        </form>
+
+                        <!-- Results -->
+                        <div id="results" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <!-- Booking Form -->
+                <div class="card shadow-sm mt-3" id="bookingCard" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Book Ticket</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="bookingForm">
+                            <div class="mb-3">
+                                <label for="userName" class="form-label">Your Name</label>
+                                <input type="text" class="form-control" id="userName" 
+                                       placeholder="John Doe" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="seats" class="form-label">Number of Seats</label>
+                                <input type="number" class="form-control" id="seats" 
+                                       min="1" max="10" value="1" required>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Total Price:</strong> 
+                                <span id="totalPrice">$0.00</span>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                Confirm Booking
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Route Map</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="map"></div>
+                    </div>
+                </div>
+
+                <!-- Available Routes -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Available Routes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="allRoutes" class="route-list">
+                            Loading routes...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="script.js"></script>
+</body>
+</html>
