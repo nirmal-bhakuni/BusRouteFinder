@@ -1,7 +1,7 @@
 /* Global Styles */
 body {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f2f5;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     min-height: 100vh;
 }
 
@@ -55,14 +55,13 @@ p, label {
 
 .route-item {
     padding: 15px;
-    border-bottom: 2px solid #ecf0f1;
-    transition: all 0.3s;
-    border-left: 4px solid #667eea;
+    border-bottom: 1px solid #e4e6eb;
+    transition: background-color 0.2s;
+    border-left: 4px solid #1877f2;
 }
 
 .route-item:hover {
-    background: linear-gradient(90deg, #f5f7fa 0%, #c3cfe2 100%);
-    transform: translateX(5px);
+    background-color: #f2f2f2;
 }
 
 .route-item:last-child {
@@ -108,78 +107,78 @@ p, label {
     gap: 10px;
     margin-bottom: 15px;
     padding: 20px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    border-radius: 12px;
+    background-color: #ffffff;
+    border-radius: 8px;
 }
 
 /* Individual Seat */
 .seat {
     aspect-ratio: 1 / 1;
-    background-color: #e9ecef;
-    border: 2px solid #bdc3c7;
-    border-radius: 8px;
+    background-color: #e4e6eb;
+    border: 2px solid #d0d2d7;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     font-weight: 700;
     font-size: 14px;
-    color: #2c3e50;
+    color: #050505;
     transition: all 0.2s ease;
     user-select: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     min-width: 50px;
     min-height: 50px;
 }
 
 .seat:hover:not(.booked):not(.reserved) {
-    background-color: #95a5a6;
-    border-color: #7f8c8d;
+    background-color: #d0d2d7;
+    border-color: #bcc0c4;
     transform: scale(1.08);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Available Seat (default state) */
 .seat.available {
-    background: linear-gradient(135deg, #e9ecef 0%, #d5dbdb 100%);
-    border-color: #bdc3c7;
+    background-color: #e4e6eb;
+    border-color: #d0d2d7;
 }
 
 /* Selected Seat */
 .seat.selected {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    border-color: #1e7e34;
+    background-color: #31a24c;
+    border-color: #1f6f34;
     color: white;
     transform: scale(1.12);
-    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+    box-shadow: 0 2px 6px rgba(49, 162, 76, 0.3);
 }
 
 /* Booked Seat */
 .seat.booked {
-    background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
-    border-color: #bd2130;
+    background-color: #e7515c;
+    border-color: #c7333f;
     color: white;
     cursor: not-allowed;
-    opacity: 0.75;
+    opacity: 0.8;
 }
 
 .seat.booked:hover {
     transform: none;
-    background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
+    background-color: #e7515c;
 }
 
 /* Reserved Seat */
 .seat.reserved {
-    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
-    border-color: #e0a800;
-    color: #212529;
+    background-color: #f02849;
+    border-color: #d11f38;
+    color: white;
     cursor: not-allowed;
-    opacity: 0.85;
+    opacity: 0.8;
 }
 
 .seat.reserved:hover {
     transform: none;
-    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    background-color: #f02849;
 }
 
 /* Seat Legend */
@@ -208,29 +207,29 @@ p, label {
 }
 
 .seat-legend-box.available {
-    background-color: #e9ecef;
-    border-color: #dee2e6;
+    background-color: #e4e6eb;
+    border-color: #d0d2d7;
 }
 
 .seat-legend-box.selected {
-    background-color: #28a745;
-    border-color: #1e7e34;
+    background-color: #31a24c;
+    border-color: #1f6f34;
 }
 
 .seat-legend-box.booked {
-    background-color: #dc3545;
-    border-color: #bd2130;
+    background-color: #e7515c;
+    border-color: #c7333f;
 }
 
 .seat-legend-box.reserved {
-    background-color: #ffc107;
-    border-color: #e0a800;
+    background-color: #f02849;
+    border-color: #d11f38;
 }
 
 /* Selected Seats Display */
 #selectedSeatsDisplay {
     font-weight: 600;
-    color: #28a745;
+    color: #31a24c;
 }
 
 /* Responsive Seat Map */
@@ -262,93 +261,93 @@ p, label {
 .card {
     border: none;
     margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    border-radius: 12px;
-    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    transition: box-shadow 0.2s;
     background: #ffffff;
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .card-header {
     font-weight: 600;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+    background-color: #1877f2;
     color: white !important;
-    border-radius: 12px 12px 0 0 !important;
+    border-radius: 8px 8px 0 0 !important;
     padding: 1rem 1.5rem !important;
 }
 
 /* Buttons */
 .btn {
-    transition: all 0.3s;
+    transition: all 0.2s;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 0.6rem 1.5rem;
     border: none;
 }
 
 .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .btn-primary {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background-color: #1877f2;
     border: none;
+    color: white;
 }
 
 .btn-primary:hover, .btn-primary:focus {
-    background: linear-gradient(90deg, #764ba2 0%, #667eea 100%);
+    background-color: #0a66c2;
     border: none;
     color: white;
-    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 2px 6px rgba(24, 119, 242, 0.3);
 }
 
 .btn-success {
-    background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+    background-color: #31a24c;
     border: none;
+    color: white;
 }
 
 .btn-success:hover, .btn-success:focus {
-    background: linear-gradient(90deg, #38ef7d 0%, #11998e 100%);
+    background-color: #1f6f34;
     color: white;
 }
 
 .btn-warning {
-    background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+    background-color: #f02849;
     border: none;
     color: white;
 }
 
 .btn-warning:hover, .btn-warning:focus {
-    background: linear-gradient(90deg, #f5576c 0%, #f093fb 100%);
+    background-color: #d01c3a;
     color: white;
 }
 
 /* Form Controls */
 .form-control {
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    border: 1px solid #d0d2d7;
+    border-radius: 6px;
     padding: 0.75rem 1rem;
-    transition: all 0.3s;
+    transition: border-color 0.2s;
     font-size: 1rem;
 }
 
 .form-control:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.3rem rgba(102, 126, 234, 0.15);
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.1);
 }
 
 .form-control::placeholder {
-    color: #95a5a6;
+    color: #bcc0c4;
 }
 
 .form-label {
     font-weight: 600;
-    color: #2c3e50;
+    color: #050505;
     margin-bottom: 0.5rem;
 }
 
@@ -362,46 +361,47 @@ p, label {
 /* Alerts */
 .alert {
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 1rem 1.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     font-weight: 500;
 }
 
 .alert-info {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background-color: #e7f3ff;
+    color: #003d9e;
 }
 
 .alert-info a, .alert-info button {
-    color: white;
+    color: #003d9e;
 }
 
 .alert-success {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    color: white;
+    background-color: #e7f5ed;
+    color: #0f5132;
 }
 
 .alert-danger {
-    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-    color: white;
+    background-color: #f8d7da;
+    color: #842029;
 }
 
 .alert-warning {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
+    background-color: #fff3cd;
+    color: #856404;
 }
 
 /* User Profile Info */
 #currentUserInfo .alert {
     margin-bottom: 0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-color: #e7f3ff;
+    color: #003d9e;
 }
 
 #currentUserInfo .alert small {
     display: block;
     margin-top: 3px;
-    opacity: 0.95;
+    opacity: 0.9;
 }
 
 #currentUserInfo .fw-bold {
@@ -480,16 +480,17 @@ p, label {
 
 /* Navbar */
 .navbar {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    background: linear-gradient(90deg, #2c3e50 0%, #34495e 100%) !important;
-    border-bottom: 3px solid #3498db;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e5e7eb;
     padding: 1rem 1.5rem;
 }
 
 .navbar-brand {
     font-size: 1.5rem;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #1877f2 !important;
 }
 
 .nav-links {
