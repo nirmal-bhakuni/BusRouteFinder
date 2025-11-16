@@ -2,16 +2,19 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <queue>
 #include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
 
 using namespace std;
 
-// Simple JSON parsing - in production use a library like nlohmann/json
-// For this demo, we'll parse simple JSON structures manually
+// ========================
+// Data Structures
+// ========================
 
 struct Coordinate {
     double lat;
@@ -19,241 +22,794 @@ struct Coordinate {
 };
 
 struct Route {
+    int routeID;
     string from;
     string to;
     double distance;
+    double ticketPrice;
     vector<Coordinate> coords;
 };
 
-// Parse a simple JSON array of routes
-vector<Route> parseRoutes(const string& json) {
-    vector<Route> routes;
-    // Simple parser for demo purposes
-    // Expected format: [{"from":"A","to":"B","distance":100,"coords":[{"lat":28.6,"lng":77.2},...]}]
+struct Seat {
+    string seatID;
+    string status; // "Available", "Booked", "Reserved"
+    string userID;
+    int routeID;
+    string bookingID;
+};
+
+struct Booking {
+    string bookingID;
+    int routeID;
+    string routeInfo;
+    string userID;
+    vector<string> seatIDs;
+    double totalPrice;
+    string timestamp;
+    string status; // "Active", "Cancelled"
+};
+
+struct User {
+    string userID;
+    string name;
+    string email;
+    vector<string> bookingIDs;
+    int totalBookings;
+    double totalSpent;
+};
+
+// ========================
+// Global Data Storage
+// ========================
+map<string, Seat> seats; // seatID -> Seat
+map<string, User> users; // userID -> User
+map<string, Booking> bookings; // bookingID -> Booking
+map<int, Route> routes; // routeID -> Route
+int nextBookingID = 1;
+
+// ========================
+// Data Persistence
+// ========================
+const string USERS_FILE = "backend/data_users.txt";
+const string BOOKINGS_FILE = "backend/data_bookings.txt";
+const string SEATS_FILE = "backend/data_seats.txt";
+
+void saveUsers() {
+    ofstream file(USERS_FILE);
+    if (!file.is_open()) return;
     
-    size_t pos = json.find('[');
-    if (pos == string::npos) return routes;
-    
-    pos++;
-    while (pos < json.length()) {
-        size_t start = json.find('{', pos);
-        if (start == string::npos) break;
-        
-        size_t end = json.find('}', start);
-        if (end == string::npos) break;
-        
-        string routeStr = json.substr(start, end - start + 1);
-        Route r;
-        
-        // Extract from
-        size_t fromPos = routeStr.find("\"from\"");
-        if (fromPos != string::npos) {
-            size_t valStart = routeStr.find(':', fromPos) + 1;
-            size_t quoteStart = routeStr.find('"', valStart);
-            size_t quoteEnd = routeStr.find('"', quoteStart + 1);
-            r.from = routeStr.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
-        }
-        
-        // Extract to
-        size_t toPos = routeStr.find("\"to\"");
-        if (toPos != string::npos) {
-            size_t valStart = routeStr.find(':', toPos) + 1;
-            size_t quoteStart = routeStr.find('"', valStart);
-            size_t quoteEnd = routeStr.find('"', quoteStart + 1);
-            r.to = routeStr.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
-        }
-        
-        // Extract distance
-        size_t distPos = routeStr.find("\"distance\"");
-        if (distPos != string::npos) {
-            size_t valStart = routeStr.find(':', distPos) + 1;
-            size_t valEnd = routeStr.find_first_of(",}", valStart);
-            r.distance = stod(routeStr.substr(valStart, valEnd - valStart));
-        }
-        
-        routes.push_back(r);
-        pos = end + 1;
+    for (const auto& pair : users) {
+        const User& u = pair.second;
+        file << u.userID << "|" << u.name << "|" << u.email << "|"
+             << u.totalBookings << "|" << fixed << setprecision(2) << u.totalSpent << "\n";
     }
-    
-    return routes;
+    file.close();
 }
 
-// Build adjacency graph from routes
-map<string, vector<pair<string, double>>> buildGraph(const vector<Route>& routes) {
-    map<string, vector<pair<string, double>>> graph;
+void loadUsers() {
+    ifstream file(USERS_FILE);
+    if (!file.is_open()) return;
     
-    for (const auto& route : routes) {
-        graph[route.from].push_back({route.to, route.distance});
-        // Bidirectional routes
-        graph[route.to].push_back({route.from, route.distance});
-    }
-    
-    return graph;
-}
-
-// Dijkstra's algorithm to find shortest path
-pair<vector<string>, double> findShortestPath(
-    const map<string, vector<pair<string, double>>>& graph,
-    const string& start,
-    const string& end) {
-    
-    map<string, double> distances;
-    map<string, string> previous;
-    priority_queue<pair<double, string>, 
-                   vector<pair<double, string>>,
-                   greater<pair<double, string>>> pq;
-    
-    // Initialize distances
-    for (const auto& node : graph) {
-        distances[node.first] = INFINITY;
-    }
-    distances[start] = 0;
-    pq.push({0, start});
-    
-    while (!pq.empty()) {
-        auto [dist, current] = pq.top();
-        pq.pop();
-        
-        if (current == end) break;
-        if (dist > distances[current]) continue;
-        
-        if (graph.find(current) != graph.end()) {
-            for (const auto& [neighbor, weight] : graph.at(current)) {
-                double newDist = distances[current] + weight;
-                if (newDist < distances[neighbor]) {
-                    distances[neighbor] = newDist;
-                    previous[neighbor] = current;
-                    pq.push({newDist, neighbor});
-                }
-            }
-        }
-    }
-    
-    // Reconstruct path
-    vector<string> path;
-    if (distances[end] == INFINITY) {
-        return {path, -1};
-    }
-    
-    string current = end;
-    while (current != start) {
-        path.push_back(current);
-        current = previous[current];
-    }
-    path.push_back(start);
-    reverse(path.begin(), path.end());
-    
-    return {path, distances[end]};
-}
-
-// Calculate fare based on distance
-double calculateFare(double distance) {
-    // Base fare: $10
-    // Per km: $0.5
-    double baseFare = 10.0;
-    double perKmRate = 0.5;
-    return baseFare + (distance * perKmRate);
-}
-
-// Estimate time based on distance (average speed 60 km/h)
-double estimateTime(double distance) {
-    double avgSpeed = 60.0; // km/h
-    return distance / avgSpeed; // hours
-}
-
-// Main function to process commands
-int main(int argc, char* argv[]) {
-    // Read JSON from stdin
-    string input;
     string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        size_t pos1 = line.find('|');
+        size_t pos2 = line.find('|', pos1 + 1);
+        size_t pos3 = line.find('|', pos2 + 1);
+        size_t pos4 = line.find('|', pos3 + 1);
+        
+        if (pos1 != string::npos && pos2 != string::npos && pos3 != string::npos && pos4 != string::npos) {
+            string userID = line.substr(0, pos1);
+            string name = line.substr(pos1 + 1, pos2 - pos1 - 1);
+            string email = line.substr(pos2 + 1, pos3 - pos2 - 1);
+            int bookings = stoi(line.substr(pos3 + 1, pos4 - pos3 - 1));
+            double spent = stod(line.substr(pos4 + 1));
+            
+            users[userID] = {userID, name, email, {}, bookings, spent};
+        }
+    }
+    file.close();
+}
+
+void saveBookings() {
+    ofstream file(BOOKINGS_FILE);
+    if (!file.is_open()) return;
+    
+    for (const auto& pair : bookings) {
+        const Booking& b = pair.second;
+        file << b.bookingID << "|" << b.routeID << "|" << b.routeInfo << "|"
+             << b.userID << "|";
+        
+        // Save seat IDs
+        for (size_t i = 0; i < b.seatIDs.size(); i++) {
+            if (i > 0) file << ",";
+            file << b.seatIDs[i];
+        }
+        file << "|" << fixed << setprecision(2) << b.totalPrice << "|"
+             << b.timestamp << "|" << b.status << "\n";
+    }
+    file.close();
+}
+
+void loadBookings() {
+    ifstream file(BOOKINGS_FILE);
+    if (!file.is_open()) return;
+    
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        size_t pos = 0;
+        vector<string> parts;
+        string part;
+        
+        for (int i = 0; i < 8; i++) {
+            size_t next = line.find('|', pos);
+            if (next == string::npos) {
+                parts.push_back(line.substr(pos));
+                break;
+            }
+            parts.push_back(line.substr(pos, next - pos));
+            pos = next + 1;
+        }
+        
+        if (parts.size() >= 8) {
+            string bookingID = parts[0];
+            int routeID = stoi(parts[1]);
+            string routeInfo = parts[2];
+            string userID = parts[3];
+            
+            vector<string> seatIDs;
+            stringstream ss(parts[4]);
+            string seat;
+            while (getline(ss, seat, ',')) {
+                if (!seat.empty()) seatIDs.push_back(seat);
+            }
+            
+            double totalPrice = stod(parts[5]);
+            string timestamp = parts[6];
+            string status = parts[7];
+            
+            bookings[bookingID] = {bookingID, routeID, routeInfo, userID, seatIDs, totalPrice, timestamp, status};
+            
+            // Update nextBookingID
+            int num = stoi(bookingID.substr(2));
+            if (num >= nextBookingID) nextBookingID = num + 1;
+        }
+    }
+    file.close();
+}
+
+void saveSeatState() {
+    ofstream file(SEATS_FILE);
+    if (!file.is_open()) return;
+    
+    for (const auto& pair : seats) {
+        const Seat& s = pair.second;
+        file << s.seatID << "|" << s.status << "|" << s.userID << "|"
+             << s.routeID << "|" << s.bookingID << "\n";
+    }
+    file.close();
+}
+
+void loadSeatState() {
+    ifstream file(SEATS_FILE);
+    if (!file.is_open()) return;
+    
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        size_t pos1 = line.find('|');
+        size_t pos2 = line.find('|', pos1 + 1);
+        size_t pos3 = line.find('|', pos2 + 1);
+        size_t pos4 = line.find('|', pos3 + 1);
+        
+        if (pos1 != string::npos && pos2 != string::npos && pos3 != string::npos && pos4 != string::npos) {
+            string seatID = line.substr(0, pos1);
+            string status = line.substr(pos1 + 1, pos2 - pos1 - 1);
+            string userID = line.substr(pos2 + 1, pos3 - pos2 - 1);
+            int routeID = stoi(line.substr(pos3 + 1, pos4 - pos3 - 1));
+            string bookingID = line.substr(pos4 + 1);
+            
+            seats[seatID] = {seatID, status, userID, routeID, bookingID};
+        }
+    }
+    file.close();
+}
+
+// ========================
+// Utility Functions
+// ========================
+
+string generateBookingID() {
+    return "BK" + to_string(nextBookingID++);
+}
+
+string getCurrentTimestamp() {
+    time_t now = time(0);
+    char buf[80];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    return string(buf);
+}
+
+string toLowerCase(const string& str) {
+    string result = str;
+    transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+// ========================
+// Seat Management
+// ========================
+
+void initializeSeatsForRoute(int routeID, int totalSeats = 40) {
+    for (int i = 1; i <= totalSeats; i++) {
+        string seatID = "R" + to_string(routeID) + "S" + to_string(i);
+        seats[seatID] = {seatID, "Available", "", routeID, ""};
+    }
+}
+
+int countAvailableSeats(int routeID) {
+    int count = 0;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID && pair.second.status == "Available") {
+            count++;
+        }
+    }
+    return count;
+}
+
+int countBookedSeats(int routeID) {
+    int count = 0;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID && pair.second.status == "Booked") {
+            count++;
+        }
+    }
+    return count;
+}
+
+int countReservedSeats(int routeID) {
+    int count = 0;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID && pair.second.status == "Reserved") {
+            count++;
+        }
+    }
+    return count;
+}
+
+vector<string> getAvailableSeats(int routeID) {
+    vector<string> available;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID && pair.second.status == "Available") {
+            available.push_back(pair.second.seatID);
+        }
+    }
+    sort(available.begin(), available.end());
+    return available;
+}
+
+vector<string> getBookedSeats(int routeID) {
+    vector<string> booked;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID && pair.second.status == "Booked") {
+            booked.push_back(pair.second.seatID);
+        }
+    }
+    sort(booked.begin(), booked.end());
+    return booked;
+}
+
+// ========================
+// User Management
+// ========================
+
+bool createUser(const string& userID, const string& name, const string& email) {
+    if (users.find(userID) != users.end()) {
+        return false; // User already exists
+    }
+    users[userID] = {userID, name, email, {}, 0, 0.0};
+    saveUsers();  // Persist to file
+    return true;
+}
+
+bool updateUser(const string& userID, const string& name, const string& email) {
+    if (users.find(userID) == users.end()) {
+        return false;
+    }
+    users[userID].name = name;
+    users[userID].email = email;
+    saveUsers();  // Persist to file
+    return true;
+}
+
+bool userExists(const string& userID) {
+    return users.find(userID) != users.end();
+}
+
+// ========================
+// Booking Management
+// ========================
+
+string bookSeats(int routeID, const string& routeInfo, const string& userID, 
+                 const vector<string>& seatIDs, double pricePerSeat) {
+    
+    if (!userExists(userID)) {
+        return "ERROR:User does not exist";
+    }
+    
+    // Check if all seats are available
+    for (const string& seatID : seatIDs) {
+        if (seats.find(seatID) == seats.end()) {
+            return "ERROR:Seat " + seatID + " does not exist";
+        }
+        if (seats[seatID].status != "Available") {
+            return "ERROR:Seat " + seatID + " is not available";
+        }
+        if (seats[seatID].routeID != routeID) {
+            return "ERROR:Seat " + seatID + " does not belong to this route";
+        }
+    }
+    
+    // Create booking
+    string bookingID = generateBookingID();
+    double totalPrice = pricePerSeat * seatIDs.size();
+    
+    Booking booking = {
+        bookingID,
+        routeID,
+        routeInfo,
+        userID,
+        seatIDs,
+        totalPrice,
+        getCurrentTimestamp(),
+        "Active"
+    };
+    
+    bookings[bookingID] = booking;
+    
+    // Update seats
+    for (const string& seatID : seatIDs) {
+        seats[seatID].status = "Booked";
+        seats[seatID].userID = userID;
+        seats[seatID].bookingID = bookingID;
+    }
+    
+    // Update user
+    users[userID].bookingIDs.push_back(bookingID);
+    users[userID].totalBookings++;
+    users[userID].totalSpent += totalPrice;
+    
+    // Persist changes
+    saveBookings();
+    saveSeatState();
+    saveUsers();
+    
+    return bookingID;
+}
+
+bool cancelBooking(const string& bookingID, const string& userID) {
+    if (bookings.find(bookingID) == bookings.end()) {
+        return false;
+    }
+    
+    Booking& booking = bookings[bookingID];
+    
+    if (booking.userID != userID) {
+        return false; // User doesn't own this booking
+    }
+    
+    if (booking.status == "Cancelled") {
+        return false; // Already cancelled
+    }
+    
+    // Free up seats
+    for (const string& seatID : booking.seatIDs) {
+        if (seats.find(seatID) != seats.end()) {
+            seats[seatID].status = "Available";
+            seats[seatID].userID = "";
+            seats[seatID].bookingID = "";
+        }
+    }
+    
+    // Update booking status
+    booking.status = "Cancelled";
+    
+    // Update user stats
+    users[userID].totalSpent -= booking.totalPrice;
+    
+    return true;
+}
+
+bool reserveSeat(const string& seatID, const string& userID) {
+    if (seats.find(seatID) == seats.end()) {
+        return false;
+    }
+    
+    if (seats[seatID].status != "Available") {
+        return false;
+    }
+    
+    seats[seatID].status = "Reserved";
+    seats[seatID].userID = userID;
+    return true;
+}
+
+bool releaseSeat(const string& seatID, const string& userID) {
+    if (seats.find(seatID) == seats.end()) {
+        return false;
+    }
+    
+    if (seats[seatID].userID != userID) {
+        return false;
+    }
+    
+    if (seats[seatID].status == "Reserved") {
+        seats[seatID].status = "Available";
+        seats[seatID].userID = "";
+        return true;
+    }
+    
+    return false;
+}
+
+// ========================
+// JSON Output Functions
+// ========================
+
+string vectorToJSON(const vector<string>& vec) {
+    ostringstream oss;
+    oss << "[";
+    for (size_t i = 0; i < vec.size(); i++) {
+        oss << "\"" << vec[i] << "\"";
+        if (i < vec.size() - 1) oss << ",";
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string seatsToJSON(int routeID) {
+    ostringstream oss;
+    oss << "[";
+    bool first = true;
+    for (const auto& pair : seats) {
+        if (pair.second.routeID == routeID) {
+            if (!first) oss << ",";
+            first = false;
+            oss << "{"
+                << "\"seatID\":\"" << pair.second.seatID << "\","
+                << "\"status\":\"" << pair.second.status << "\","
+                << "\"userID\":\"" << pair.second.userID << "\","
+                << "\"bookingID\":\"" << pair.second.bookingID << "\""
+                << "}";
+        }
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string allSeatsToJSON() {
+    ostringstream oss;
+    oss << "[";
+    bool first = true;
+    for (const auto& pair : seats) {
+        if (!first) oss << ",";
+        first = false;
+        oss << "{"
+            << "\"seatID\":\"" << pair.second.seatID << "\","
+            << "\"status\":\"" << pair.second.status << "\","
+            << "\"userID\":\"" << pair.second.userID << "\","
+            << "\"routeID\":" << pair.second.routeID << ","
+            << "\"bookingID\":\"" << pair.second.bookingID << "\""
+            << "}";
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string userToJSON(const string& userID) {
+    if (users.find(userID) == users.end()) {
+        return "{}";
+    }
+    
+    const User& u = users[userID];
+    ostringstream oss;
+    oss << "{"
+        << "\"userID\":\"" << u.userID << "\","
+        << "\"name\":\"" << u.name << "\","
+        << "\"email\":\"" << u.email << "\","
+        << "\"totalBookings\":" << u.totalBookings << ","
+        << "\"totalSpent\":" << fixed << setprecision(2) << u.totalSpent << ","
+        << "\"bookingIDs\":" << vectorToJSON(u.bookingIDs)
+        << "}";
+    return oss.str();
+}
+
+string allUsersToJSON() {
+    ostringstream oss;
+    oss << "[";
+    bool first = true;
+    for (const auto& pair : users) {
+        if (!first) oss << ",";
+        first = false;
+        oss << userToJSON(pair.first);
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string bookingToJSON(const string& bookingID) {
+    if (bookings.find(bookingID) == bookings.end()) {
+        return "{}";
+    }
+    
+    const Booking& b = bookings[bookingID];
+    ostringstream oss;
+    oss << "{"
+        << "\"bookingID\":\"" << b.bookingID << "\","
+        << "\"routeID\":" << b.routeID << ","
+        << "\"routeInfo\":\"" << b.routeInfo << "\","
+        << "\"userID\":\"" << b.userID << "\","
+        << "\"seatIDs\":" << vectorToJSON(b.seatIDs) << ","
+        << "\"totalPrice\":" << fixed << setprecision(2) << b.totalPrice << ","
+        << "\"timestamp\":\"" << b.timestamp << "\","
+        << "\"status\":\"" << b.status << "\""
+        << "}";
+    return oss.str();
+}
+
+string allBookingsToJSON() {
+    ostringstream oss;
+    oss << "[";
+    bool first = true;
+    for (const auto& pair : bookings) {
+        if (!first) oss << ",";
+        first = false;
+        oss << bookingToJSON(pair.first);
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string userBookingsToJSON(const string& userID) {
+    if (users.find(userID) == users.end()) {
+        return "[]";
+    }
+    
+    ostringstream oss;
+    oss << "[";
+    bool first = true;
+    for (const string& bookingID : users[userID].bookingIDs) {
+        if (!first) oss << ",";
+        first = false;
+        oss << bookingToJSON(bookingID);
+    }
+    oss << "]";
+    return oss.str();
+}
+
+string seatStatsToJSON(int routeID) {
+    ostringstream oss;
+    oss << "{"
+        << "\"routeID\":" << routeID << ","
+        << "\"total\":40,"
+        << "\"available\":" << countAvailableSeats(routeID) << ","
+        << "\"booked\":" << countBookedSeats(routeID) << ","
+        << "\"reserved\":" << countReservedSeats(routeID)
+        << "}";
+    return oss.str();
+}
+
+// ========================
+// JSON Input Parser
+// ========================
+
+string extractValue(const string& input, const string& key) {
+    size_t keyPos = input.find("\"" + key + "\"");
+    if (keyPos == string::npos) return "";
+    
+    size_t colonPos = input.find(':', keyPos);
+    if (colonPos == string::npos) return "";
+    
+    size_t valueStart = input.find_first_not_of(" \t\n\r", colonPos + 1);
+    if (valueStart == string::npos) return "";
+    
+    if (input[valueStart] == '"') {
+        size_t valueEnd = input.find('"', valueStart + 1);
+        if (valueEnd == string::npos) return "";
+        return input.substr(valueStart + 1, valueEnd - valueStart - 1);
+    } else if (isdigit(input[valueStart]) || input[valueStart] == '-') {
+        size_t valueEnd = input.find_first_of(",}\n", valueStart);
+        if (valueEnd == string::npos) valueEnd = input.length();
+        return input.substr(valueStart, valueEnd - valueStart);
+    }
+    
+    return "";
+}
+
+vector<string> extractArray(const string& input, const string& key) {
+    vector<string> result;
+    size_t keyPos = input.find("\"" + key + "\"");
+    if (keyPos == string::npos) return result;
+    
+    size_t arrayStart = input.find('[', keyPos);
+    size_t arrayEnd = input.find(']', arrayStart);
+    if (arrayStart == string::npos || arrayEnd == string::npos) return result;
+    
+    string arrayContent = input.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+    size_t pos = 0;
+    while (pos < arrayContent.length()) {
+        size_t quoteStart = arrayContent.find('"', pos);
+        if (quoteStart == string::npos) break;
+        size_t quoteEnd = arrayContent.find('"', quoteStart + 1);
+        if (quoteEnd == string::npos) break;
+        result.push_back(arrayContent.substr(quoteStart + 1, quoteEnd - quoteStart - 1));
+        pos = quoteEnd + 1;
+    }
+    
+    return result;
+}
+
+// ========================
+// Main Command Processor
+// ========================
+
+int main(int argc, char* argv[]) {
+    string input, line;
     while (getline(cin, line)) {
         input += line;
     }
     
-    // Parse command
-    size_t cmdPos = input.find("\"cmd\"");
-    if (cmdPos == string::npos) {
+    string cmd = extractValue(input, "cmd");
+    
+    if (cmd.empty()) {
         cout << "{\"error\":\"No command specified\"}" << endl;
         return 1;
     }
     
-    size_t valStart = input.find(':', cmdPos) + 1;
-    size_t quoteStart = input.find('"', valStart);
-    size_t quoteEnd = input.find('"', quoteStart + 1);
-    string cmd = input.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+    // User Management Commands
+    if (cmd == "createUser") {
+        string userID = extractValue(input, "userID");
+        string name = extractValue(input, "name");
+        string email = extractValue(input, "email");
+        
+        if (createUser(userID, name, email)) {
+            cout << "{\"success\":true,\"user\":" << userToJSON(userID) << "}" << endl;
+        } else {
+            cout << "{\"error\":\"User already exists\"}" << endl;
+        }
+    }
+    else if (cmd == "updateUser") {
+        string userID = extractValue(input, "userID");
+        string name = extractValue(input, "name");
+        string email = extractValue(input, "email");
+        
+        if (updateUser(userID, name, email)) {
+            cout << "{\"success\":true,\"user\":" << userToJSON(userID) << "}" << endl;
+        } else {
+            cout << "{\"error\":\"User not found\"}" << endl;
+        }
+    }
+    else if (cmd == "getUser") {
+        string userID = extractValue(input, "userID");
+        string result = userToJSON(userID);
+        if (result == "{}") {
+            cout << "{\"error\":\"User not found\"}" << endl;
+        } else {
+            cout << result << endl;
+        }
+    }
+    else if (cmd == "getAllUsers") {
+        cout << allUsersToJSON() << endl;
+    }
     
-    if (cmd == "findRoute") {
-        // Extract from
-        string from, to;
-        size_t fromPos = input.find("\"from\"");
-        if (fromPos != string::npos) {
-            size_t vStart = input.find(':', fromPos) + 1;
-            size_t qStart = input.find('"', vStart);
-            size_t qEnd = input.find('"', qStart + 1);
-            from = input.substr(qStart + 1, qEnd - qStart - 1);
+    // Seat Management Commands
+    else if (cmd == "initSeats") {
+        string routeIDStr = extractValue(input, "routeID");
+        int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
+        initializeSeatsForRoute(routeID);
+        cout << "{\"success\":true,\"message\":\"Seats initialized for route " << routeID << "\"}" << endl;
+    }
+    else if (cmd == "getSeats") {
+        string routeIDStr = extractValue(input, "routeID");
+        int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
+        cout << seatsToJSON(routeID) << endl;
+    }
+    else if (cmd == "getAllSeats") {
+        cout << allSeatsToJSON() << endl;
+    }
+    else if (cmd == "getSeatStats") {
+        string routeIDStr = extractValue(input, "routeID");
+        int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
+        cout << seatStatsToJSON(routeID) << endl;
+    }
+    else if (cmd == "getAvailableSeats") {
+        string routeIDStr = extractValue(input, "routeID");
+        int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
+        vector<string> available = getAvailableSeats(routeID);
+        cout << vectorToJSON(available) << endl;
+    }
+    else if (cmd == "getBookedSeats") {
+        string routeIDStr = extractValue(input, "routeID");
+        int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
+        vector<string> booked = getBookedSeats(routeID);
+        cout << vectorToJSON(booked) << endl;
+    }
+    
+    // Booking Commands
+    else if (cmd == "bookSeats") {
+        string routeIDStr = extractValue(input, "routeID");
+        string routeInfo = extractValue(input, "routeInfo");
+        string userID = extractValue(input, "userID");
+        string priceStr = extractValue(input, "pricePerSeat");
+        vector<string> seatIDs = extractArray(input, "seatIDs");
+        
+        int routeID = stoi(routeIDStr);
+        double pricePerSeat = stod(priceStr);
+        
+        string result = bookSeats(routeID, routeInfo, userID, seatIDs, pricePerSeat);
+        
+        if (result.substr(0, 6) == "ERROR:") {
+            cout << "{\"error\":\"" << result.substr(6) << "\"}" << endl;
+        } else {
+            cout << "{\"success\":true,\"bookingID\":\"" << result << "\","
+                 << "\"booking\":" << bookingToJSON(result) << "}" << endl;
         }
+    }
+    else if (cmd == "cancelBooking") {
+        string bookingID = extractValue(input, "bookingID");
+        string userID = extractValue(input, "userID");
         
-        // Extract to
-        size_t toPos = input.find("\"to\"");
-        if (toPos != string::npos) {
-            size_t vStart = input.find(':', toPos) + 1;
-            size_t qStart = input.find('"', vStart);
-            size_t qEnd = input.find('"', qStart + 1);
-            to = input.substr(qStart + 1, qEnd - qStart - 1);
+        if (cancelBooking(bookingID, userID)) {
+            cout << "{\"success\":true,\"message\":\"Booking cancelled successfully\"}" << endl;
+        } else {
+            cout << "{\"error\":\"Cannot cancel booking\"}" << endl;
         }
-        
-        // Extract routes array
-        size_t routesPos = input.find("\"routes\"");
-        size_t arrStart = input.find('[', routesPos);
-        size_t arrEnd = input.rfind(']');
-        string routesJson = input.substr(arrStart, arrEnd - arrStart + 1);
-        
-        vector<Route> routes = parseRoutes(routesJson);
-        auto graph = buildGraph(routes);
-        
-        auto [path, distance] = findShortestPath(graph, from, to);
-        
-        if (distance < 0) {
-            cout << "{\"error\":\"No route found\"}" << endl;
-            return 1;
+    }
+    else if (cmd == "getBooking") {
+        string bookingID = extractValue(input, "bookingID");
+        string result = bookingToJSON(bookingID);
+        if (result == "{}") {
+            cout << "{\"error\":\"Booking not found\"}" << endl;
+        } else {
+            cout << result << endl;
         }
+    }
+    else if (cmd == "getAllBookings") {
+        cout << allBookingsToJSON() << endl;
+    }
+    else if (cmd == "getUserBookings") {
+        string userID = extractValue(input, "userID");
+        cout << userBookingsToJSON(userID) << endl;
+    }
+    
+    // Seat Reservation Commands
+    else if (cmd == "reserveSeat") {
+        string seatID = extractValue(input, "seatID");
+        string userID = extractValue(input, "userID");
         
-        double fare = calculateFare(distance);
-        double time = estimateTime(distance);
-        
-        // Build path string
-        ostringstream pathStr;
-        pathStr << "[";
-        for (size_t i = 0; i < path.size(); i++) {
-            pathStr << "\"" << path[i] << "\"";
-            if (i < path.size() - 1) pathStr << ",";
+        if (reserveSeat(seatID, userID)) {
+            cout << "{\"success\":true,\"message\":\"Seat reserved\"}" << endl;
+        } else {
+            cout << "{\"error\":\"Cannot reserve seat\"}" << endl;
         }
-        pathStr << "]";
+    }
+    else if (cmd == "releaseSeat") {
+        string seatID = extractValue(input, "seatID");
+        string userID = extractValue(input, "userID");
         
-        // Output JSON result
-        cout << fixed << setprecision(2);
-        cout << "{"
-             << "\"path\":" << pathStr.str() << ","
-             << "\"distance\":" << distance << ","
-             << "\"time\":" << time << ","
-             << "\"fare\":" << fare
-             << "}" << endl;
-        
-    } else if (cmd == "calculateFare") {
-        // Extract distance
-        double distance = 0;
-        size_t distPos = input.find("\"distance\"");
-        if (distPos != string::npos) {
-            size_t valStart = input.find(':', distPos) + 1;
-            size_t valEnd = input.find_first_of(",}", valStart);
-            distance = stod(input.substr(valStart, valEnd - valStart));
+        if (releaseSeat(seatID, userID)) {
+            cout << "{\"success\":true,\"message\":\"Seat released\"}" << endl;
+        } else {
+            cout << "{\"error\":\"Cannot release seat\"}" << endl;
         }
-        
-        double fare = calculateFare(distance);
-        cout << fixed << setprecision(2);
-        cout << "{\"fare\":" << fare << "}" << endl;
-    } else {
-        cout << "{\"error\":\"Unknown command\"}" << endl;
+    }
+    
+    else {
+        cout << "{\"error\":\"Unknown command: " << cmd << "\"}" << endl;
         return 1;
     }
     

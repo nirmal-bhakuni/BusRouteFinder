@@ -2,45 +2,91 @@
 const API_BASE = '/api';
 
 // Session storage for admin token
-let adminPassword = '';
+let adminPassword = null;
+let isAdminLoggedIn = false;
 
-// Login form handler
+// Check login status on page load
+function checkAdminSession() {
+    const savedPassword = sessionStorage.getItem('adminPassword');
+    if (savedPassword) {
+        adminPassword = savedPassword;
+        isAdminLoggedIn = true;
+        showDashboard();
+        return true;
+    }
+    return false;
+}
+
+// Login form handler - IMPROVED
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const password = document.getElementById('adminPassword').value;
     const errorDiv = document.getElementById('loginError');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    
+    errorDiv.style.display = 'none';
+    submitBtn.disabled = true;
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = '⏳ Verifying...';
     
     try {
+        console.log('Attempting login with password...');
         const response = await fetch(`${API_BASE}/adminLogin`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: password })
         });
         
+        console.log('Response status:', response.status);
+        
         const data = await response.json();
+        console.log('Response data:', data);
         
         if (data.success) {
             adminPassword = password;
+            isAdminLoggedIn = true;
             sessionStorage.setItem('adminPassword', password);
+            sessionStorage.setItem('adminLoggedIn', 'true');
             
-            // Show dashboard, hide login
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('dashboardSection').style.display = 'block';
+            console.log('Login successful!');
+            showDashboard();
             
-            // Load data
+            // Load all data
             loadRoutes();
             loadBookings();
+            loadUsers();
         } else {
-            errorDiv.textContent = 'Invalid password';
+            errorDiv.textContent = '❌ ' + (data.error || 'Login failed. Default password: admin123');
             errorDiv.style.display = 'block';
+            console.log('Login failed:', data.error);
         }
     } catch (error) {
-        console.error('Error:', error);
-        errorDiv.textContent = 'Login failed. Please try again.';
+        console.error('Login error:', error);
+        errorDiv.textContent = '❌ Connection error. Make sure backend is running!';
         errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 });
+
+// Show dashboard and hide login
+function showDashboard() {
+    document.getElementById('loginSection').style.display = 'none';
+    document.getElementById('dashboardSection').style.display = 'block';
+}
+
+// Show login and hide dashboard
+function showLogin() {
+    document.getElementById('loginSection').style.display = 'block';
+    document.getElementById('dashboardSection').style.display = 'none';
+    sessionStorage.removeItem('adminPassword');
+    sessionStorage.removeItem('adminLoggedIn');
+    isAdminLoggedIn = false;
+}
 
 // Add route form handler
 document.getElementById('addRouteForm').addEventListener('submit', async (e) => {
@@ -80,7 +126,7 @@ document.getElementById('addRouteForm').addEventListener('submit', async (e) => 
         const data = await response.json();
         
         if (data.success) {
-            showMessage('addRouteMessage', 'Route added successfully!', 'success');
+            showMessage('addRouteMessage', 'Route added successfully! Seats initialized.', 'success');
             document.getElementById('addRouteForm').reset();
             loadRoutes();
         } else {
@@ -92,7 +138,7 @@ document.getElementById('addRouteForm').addEventListener('submit', async (e) => 
     }
 });
 
-// Load routes
+// Load routes with seat statistics
 async function loadRoutes() {
     try {
         const response = await fetch(`${API_BASE}/listRoutes`);
@@ -105,25 +151,88 @@ async function loadRoutes() {
             return;
         }
         
-        routesList.innerHTML = routes.map(route => `
-            <div class="admin-route-item">
-                <div class="route-details">
-                    <strong>${route.from} → ${route.to}</strong><br>
-                    <small>Distance: ${route.distance} km</small>
-                    ${route.ticket_price ? `<br><small class="text-success">Price: $${parseFloat(route.ticket_price).toFixed(2)}</small>` : `<br><small class="text-muted">Price: Auto-calculated</small>`}
-                    ${route.id ? `<br><small class="text-muted">ID: ${route.id}</small>` : ''}
+        // Fetch seat stats for each route
+        const routesWithStats = await Promise.all(routes.map(async route => {
+            try {
+                const statsResponse = await fetch(`${API_BASE}/getSeatStats/${route.id}`);
+                const stats = await statsResponse.json();
+                return { ...route, stats };
+            } catch {
+                return { ...route, stats: null };
+            }
+        }));
+        
+        routesList.innerHTML = routesWithStats.map(route => {
+            const fare = route.ticket_price || (route.distance * 0.5);
+            const stats = route.stats;
+            
+            return `
+                <div class="admin-route-item mb-3 p-3 border rounded">
+                    <div class="route-details">
+                        <strong>${route.from} → ${route.to}</strong><br>
+                        <small>Distance: ${route.distance} km</small><br>
+                        <small class="text-success">Fare: $${fare.toFixed(2)}</small><br>
+                        ${route.id ? `<small class="text-muted">Route ID: ${route.id}</small>` : ''}
+                        
+                        ${stats ? `
+                            <div class="mt-2">
+                                <span class="badge bg-success">Available: ${stats.available}</span>
+                                <span class="badge bg-danger">Booked: ${stats.booked}</span>
+                                <span class="badge bg-warning text-dark">Reserved: ${stats.reserved}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    ${route.id ? `
+                        <button class="btn btn-sm btn-info mt-2" onclick="viewRouteSeats(${route.id})">
+                            View Seats
+                        </button>
+                        <button class="btn btn-danger btn-sm mt-2" onclick="removeRoute(${route.id})">
+                            Remove
+                        </button>
+                    ` : ''}
                 </div>
-                ${route.id ? `
-                    <button class="btn btn-danger btn-sm" onclick="removeRoute(${route.id})">
-                        Remove
-                    </button>
-                ` : ''}
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (error) {
         console.error('Error loading routes:', error);
         document.getElementById('routesList').innerHTML = 
             '<p class="text-danger">Error loading routes</p>';
+    }
+}
+
+// View detailed seat allocation for a route
+async function viewRouteSeats(routeId) {
+    try {
+        const response = await fetch(`${API_BASE}/getSeats/${routeId}`);
+        const seats = await response.json();
+        
+        if (!seats || seats.length === 0) {
+            alert('No seat data available for this route');
+            return;
+        }
+        
+        // Group seats by status
+        const available = seats.filter(s => s.status === 'Available').length;
+        const booked = seats.filter(s => s.status === 'Booked');
+        const reserved = seats.filter(s => s.status === 'Reserved').length;
+        
+        let message = `Seat Details for Route ${routeId}\n\n`;
+        message += `Total Seats: ${seats.length}\n`;
+        message += `Available: ${available}\n`;
+        message += `Booked: ${booked.length}\n`;
+        message += `Reserved: ${reserved}\n\n`;
+        
+        if (booked.length > 0) {
+            message += 'Booked Seats:\n';
+            booked.forEach(seat => {
+                message += `  ${seat.seatID} - User: ${seat.userID} - Booking: ${seat.bookingID}\n`;
+            });
+        }
+        
+        alert(message);
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error loading seat details');
     }
 }
 
@@ -156,7 +265,7 @@ async function removeRoute(routeId) {
     }
 }
 
-// Load bookings
+// Load bookings with enhanced details
 async function loadBookings() {
     try {
         const response = await fetch(`${API_BASE}/listBookings?password=${encodeURIComponent(adminPassword)}`);
@@ -173,22 +282,30 @@ async function loadBookings() {
             return;
         }
         
-        bookingsList.innerHTML = bookings.map((booking, index) => {
-            const id = booking.id || index + 1;
-            const route = booking.route || booking.route_info || 'N/A';
-            const userName = booking.user_name || 'N/A';
-            const seats = booking.seats_booked || booking.seats || 0;
-            const price = booking.total_price || booking.price || 0;
-            const bookedAt = booking.booked_at || booking.timestamp || new Date().toISOString();
+        bookingsList.innerHTML = bookings.map(booking => {
+            const bookingID = booking.bookingID || 'N/A';
+            const route = booking.routeInfo || 'N/A';
+            const userID = booking.userID || 'N/A';
+            const seats = booking.seatIDs ? booking.seatIDs.join(', ') : '0';
+            const price = booking.totalPrice || 0;
+            const timestamp = booking.timestamp || new Date().toISOString();
+            const status = booking.status || 'Active';
+            
+            const statusBadge = status === 'Active' 
+                ? '<span class="badge bg-success">Active</span>'
+                : '<span class="badge bg-secondary">Cancelled</span>';
             
             return `
-                <tr>
-                    <td>${id}</td>
+                <tr class="${status === 'Cancelled' ? 'table-secondary' : ''}">
+                    <td>${bookingID}</td>
                     <td>${route}</td>
-                    <td>${userName}</td>
-                    <td>${seats}</td>
+                    <td>${userID}</td>
+                    <td><small>${seats}</small></td>
                     <td>$${parseFloat(price).toFixed(2)}</td>
-                    <td>${new Date(bookedAt).toLocaleString()}</td>
+                    <td>
+                        ${new Date(timestamp).toLocaleString()}<br>
+                        ${statusBadge}
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -197,6 +314,49 @@ async function loadBookings() {
         document.getElementById('bookingsList').innerHTML = `
             <tr>
                 <td colspan="6" class="text-center text-danger">Error loading bookings</td>
+            </tr>
+        `;
+    }
+}
+
+// Load users with enhanced statistics
+async function loadUsers() {
+    try {
+        const response = await fetch(`${API_BASE}/listUsers?password=${encodeURIComponent(adminPassword)}`);
+        const users = await response.json();
+        
+        const usersList = document.getElementById('usersList');
+        
+        if (users.length === 0) {
+            usersList.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-muted">No users registered</td>
+                </tr>
+            `;
+            return;
+        }
+        
+        usersList.innerHTML = users.map(user => {
+            const bookingsCount = user.totalBookings || 0;
+            const totalSpent = user.totalSpent || 0;
+            
+            return `
+                <tr>
+                    <td>${user.userID}</td>
+                    <td>${user.name}</td>
+                    <td>${user.email}</td>
+                    <td>
+                        ${bookingsCount} booking(s)<br>
+                        <small class="text-success">Total: $${totalSpent.toFixed(2)}</small>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('usersList').innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-danger">Error loading users</td>
             </tr>
         `;
     }
@@ -216,9 +376,9 @@ function showMessage(elementId, message, type) {
 
 // Check if already logged in
 document.addEventListener('DOMContentLoaded', () => {
-    const savedPassword = sessionStorage.getItem('adminPassword');
-    if (savedPassword) {
-        document.getElementById('adminPassword').value = savedPassword;
-        document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+    if (!checkAdminSession()) {
+        // Not logged in, stay on login page
+        document.getElementById('loginSection').style.display = 'block';
+        document.getElementById('dashboardSection').style.display = 'none';
     }
 });

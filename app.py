@@ -12,9 +12,14 @@ CORS(app)
 # =======================
 # Configuration
 # =======================
-USE_DB = os.environ.get('USE_DB', 'true').lower() == 'true'
+USE_DB = os.environ.get('USE_DB', 'false').lower() == 'true'
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///data.db')
+
+# ADMIN CREDENTIALS - CHANGE THESE!
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+ADMIN_USERNAME = 'admin'  # Username is always "admin"
+# Access admin panel at: /admin.html
+# Login with username: admin, password: admin123
 
 if USE_DB:
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -24,66 +29,37 @@ else:
     db = None
 
 # =======================
-# Database Models
+# C++ Backend Integration
 # =======================
-if USE_DB:
-    class Route(db.Model):
-        __tablename__ = 'routes'
-        id = db.Column(db.Integer, primary_key=True)
-        from_city = db.Column(db.String(100), nullable=False)
-        to_city = db.Column(db.String(100), nullable=False)
-        distance = db.Column(db.Float, nullable=False)
-        ticket_price = db.Column(db.Float)
-        coords = db.Column(db.Text)
-        stops = db.Column(db.Text)
-        created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-        def to_dict(self):
-            return {
-                'id': self.id,
-                'from': self.from_city,
-                'to': self.to_city,
-                'distance': self.distance,
-                'ticket_price': self.ticket_price,
-                'coords': json.loads(self.coords) if self.coords else [],
-                'stops': json.loads(self.stops) if self.stops else []
-            }
-
-    class Bus(db.Model):
-        __tablename__ = 'buses'
-        id = db.Column(db.Integer, primary_key=True)
-        route_id = db.Column(db.Integer, db.ForeignKey('routes.id'))
-        operator = db.Column(db.String(100))
-        seats = db.Column(db.Integer, default=40)
-        fare_modifier = db.Column(db.Float, default=1.0)
-
-    class Booking(db.Model):
-        __tablename__ = 'bookings'
-        id = db.Column(db.Integer, primary_key=True)
-        route_id = db.Column(db.Integer, db.ForeignKey('routes.id'))
-        user_name = db.Column(db.String(100), nullable=False)
-        seats_booked = db.Column(db.Integer, nullable=False)
-        total_price = db.Column(db.Float, nullable=False)
-        booked_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-        def to_dict(self):
-            route = Route.query.get(self.route_id)
-            return {
-                'id': self.id,
-                'route': f"{route.from_city} → {route.to_city}" if route else "Unknown",
-                'user_name': self.user_name,
-                'seats_booked': self.seats_booked,
-                'total_price': self.total_price,
-                'booked_at': self.booked_at.isoformat()
-            }
+def call_cpp_logic(cmd_data):
+    """Call the C++ backend with JSON input and get JSON output"""
+    binary = './backend/logic.exe' if os.name == 'nt' else './backend/logic'
+    try:
+        result = subprocess.run(
+            [binary],
+            input=json.dumps(cmd_data),
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode != 0:
+            return {'error': f'C++ error: {result.stderr.strip()}'}
+        return json.loads(result.stdout)
+    except subprocess.TimeoutExpired:
+        return {'error': 'C++ computation timeout'}
+    except json.JSONDecodeError as e:
+        return {'error': f'Invalid C++ output: {result.stdout.strip()}'}
+    except Exception as e:
+        return {'error': str(e)}
 
 # =======================
-# Helper Functions (File Mode)
+# Helper Functions
 # =======================
 def load_routes_from_file():
     routes = []
     try:
         with open(os.path.join(os.path.dirname(__file__), 'backend', 'routes.txt'), 'r') as f:
+            route_id = 1
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -91,7 +67,6 @@ def load_routes_from_file():
                 parts = line.split('|')
                 if len(parts) < 3:
                     continue
-                # Safe parsing
                 from_city = parts[0].strip()
                 to_city = parts[1].strip()
                 try:
@@ -103,76 +78,28 @@ def load_routes_from_file():
                     try:
                         ticket_price = float(parts[3].strip())
                     except ValueError:
-                        ticket_price = None
+                        pass
                 coords = []
                 if len(parts) > 4 and parts[4].strip():
                     try:
                         coords = json.loads(parts[4].strip())
                     except json.JSONDecodeError:
-                        coords = []
+                        pass
                 routes.append({
+                    'id': route_id,
                     'from': from_city,
                     'to': to_city,
                     'distance': distance,
                     'ticket_price': ticket_price,
                     'coords': coords
                 })
+                route_id += 1
     except FileNotFoundError:
         pass
     return routes
 
-def save_booking_to_file(route_info, user_name, seats, price):
-    with open('backend/bookings.txt', 'a') as f:
-        booking = {
-            'route': route_info,
-            'user_name': user_name,
-            'seats': seats,
-            'price': price,
-            'timestamp': datetime.now().isoformat()
-        }
-        f.write(json.dumps(booking) + '\n')
-
-def load_bookings_from_file():
-    bookings = []
-    try:
-        with open('backend/bookings.txt', 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    bookings.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    except FileNotFoundError:
-        pass
-    return bookings
-
 # =======================
-# C++ Backend Integration
-# =======================
-def call_cpp_logic(cmd_data):
-    binary = './backend/logic.exe' if os.name == 'nt' else './backend/logic'
-    try:
-        result = subprocess.run(
-            [binary],
-            input=json.dumps(cmd_data),
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode != 0:
-            return {'error': f'C++ error: {result.stderr.strip()}'}
-        return json.loads(result.stdout)
-    except subprocess.TimeoutExpired:
-        return {'error': 'C++ computation timeout'}
-    except json.JSONDecodeError:
-        return {'error': f'Invalid C++ output: {result.stdout.strip()}'}
-    except Exception as e:
-        return {'error': str(e)}
-
-# =======================
-# Routes
+# Routes - Static Files
 # =======================
 @app.route('/')
 def index():
@@ -182,186 +109,333 @@ def index():
 def static_files(path):
     return send_from_directory('frontend', path)
 
-@app.route('/api/findRoute', methods=['POST'])
-def find_route():
+# =======================
+# User Management APIs
+# =======================
+@app.route('/api/createUser', methods=['POST'])
+def create_user():
     data = request.json
-    from_city = data.get('from', '').strip()
-    to_city = data.get('to', '').strip()
-
-    if not from_city or not to_city:
-        return jsonify({'error': 'Source and destination required'}), 400
-
-    # Load routes
-    routes_data = Route.query.all() if USE_DB else load_routes_from_file()
-    routes_data = [r.to_dict() for r in routes_data] if USE_DB else routes_data
-
-    if not routes_data:
-        return jsonify({'error': 'No routes available'}), 404
-
-    # Call C++ logic
-    cpp_input = {'cmd': 'findRoute', 'from': from_city, 'to': to_city, 'routes': routes_data}
-    result = call_cpp_logic(cpp_input)
+    userID = data.get('userID', '').strip()
+    name = data.get('name', '').strip()
+    email = data.get('email', '').strip()
+    
+    if not userID or not name or not email:
+        return jsonify({'error': 'Invalid user data'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'createUser',
+        'userID': userID,
+        'name': name,
+        'email': email
+    })
+    
     if 'error' in result:
-        return jsonify(result), 500
-    if 'path' not in result or not result['path']:
-        return jsonify({'error': 'No path found'}), 404
-
-    # Collect coordinates and calculate fare
-    path_coords = []
-    total_custom_fare = 0
-    has_custom_prices = True
-
-    for i in range(len(result['path']) - 1):
-        from_stop = result['path'][i].strip().lower()
-        to_stop = result['path'][i + 1].strip().lower()
-        matched = False
-        for route in routes_data:
-            r_from = route['from'].strip().lower()
-            r_to = route['to'].strip().lower()
-            if (r_from == from_stop and r_to == to_stop) or (r_from == to_stop and r_to == from_stop):
-                if route.get('coords'):
-                    path_coords.extend(route['coords'])
-                if route.get('ticket_price') is not None:
-                    total_custom_fare += route['ticket_price']
-                else:
-                    has_custom_prices = False
-                matched = True
-                break
-        if not matched:
-            has_custom_prices = False
-
-    if has_custom_prices and total_custom_fare > 0:
-        result['fare'] = total_custom_fare
-
-    result['coords'] = path_coords
+        return jsonify(result), 400
     return jsonify(result)
 
-@app.route('/api/listRoutes', methods=['GET'])
-def list_routes():
-    if USE_DB:
-        routes = Route.query.all()
-        return jsonify([r.to_dict() for r in routes])
-    else:
-        return jsonify(load_routes_from_file())
+@app.route('/api/getUser/<userID>', methods=['GET'])
+def get_user(userID):
+    result = call_cpp_logic({
+        'cmd': 'getUser',
+        'userID': userID
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 404
+    return jsonify(result)
 
-@app.route('/api/addRoute', methods=['POST'])
-def add_route():
+@app.route('/api/updateUser', methods=['POST'])
+def update_user():
     data = request.json
-    if data.get('password') != ADMIN_PASSWORD:
+    userID = data.get('userID', '').strip()
+    name = data.get('name', '').strip()
+    email = data.get('email', '').strip()
+    
+    if not userID or not name or not email:
+        return jsonify({'error': 'Invalid user data'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'updateUser',
+        'userID': userID,
+        'name': name,
+        'email': email
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 404
+    return jsonify(result)
+
+@app.route('/api/listUsers', methods=['GET'])
+def list_users():
+    password = request.args.get('password')
+    if password != ADMIN_PASSWORD:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    result = call_cpp_logic({'cmd': 'getAllUsers'})
+    return jsonify(result if isinstance(result, list) else [])
 
-    from_city = data.get('from', '').strip()
-    to_city = data.get('to', '').strip()
-    distance = data.get('distance', 0)
-    ticket_price = data.get('ticket_price', None)
-    coords = data.get('coords', [])
-
-    if not from_city or not to_city or distance <= 0:
-        return jsonify({'error': 'Invalid route data'}), 400
-
-    if USE_DB:
-        route = Route(
-            from_city=from_city,
-            to_city=to_city,
-            distance=distance,
-            ticket_price=ticket_price,
-            coords=json.dumps(coords),
-            stops=json.dumps([])
-        )
-        db.session.add(route)
-        db.session.commit()
-        return jsonify({'success': True, 'id': route.id})
-    else:
-        coords_str = json.dumps(coords)
-        price_str = str(ticket_price) if ticket_price else ''
-        line_to_write = f"{from_city}|{to_city}|{distance}|{price_str}|{coords_str}\n"
-        print(f"Writing to file: {line_to_write}")
-        with open('backend/routes.txt', 'a') as f:
-            f.write(line_to_write)
-        return jsonify({'success': True})
-
-@app.route('/api/removeRoute', methods=['POST'])
-def remove_route():
+# =======================
+# Seat Management APIs
+# =======================
+@app.route('/api/initSeats', methods=['POST'])
+def init_seats():
     data = request.json
-    if data.get('password') != ADMIN_PASSWORD:
-        return jsonify({'error': 'Unauthorized'}), 401
+    route_id = data.get('routeID', 1)
+    
+    result = call_cpp_logic({
+        'cmd': 'initSeats',
+        'routeID': str(route_id)
+    })
+    
+    return jsonify(result)
 
-    if USE_DB:
-        route_id = data.get('route_id')
-        route = Route.query.get(route_id)
-        if route:
-            db.session.delete(route)
-            db.session.commit()
-            return jsonify({'success': True})
-        return jsonify({'error': 'Route not found'}), 404
-    else:
-        return jsonify({'error': 'Remove not supported in file mode'}, 400)
+@app.route('/api/getSeats/<int:route_id>', methods=['GET'])
+def get_seats(route_id):
+    result = call_cpp_logic({
+        'cmd': 'getSeats',
+        'routeID': str(route_id)
+    })
+    
+    return jsonify(result if isinstance(result, list) else [])
 
-@app.route('/api/book', methods=['POST'])
-def book_ticket():
+@app.route('/api/getSeatStats/<int:route_id>', methods=['GET'])
+def get_seat_stats(route_id):
+    result = call_cpp_logic({
+        'cmd': 'getSeatStats',
+        'routeID': str(route_id)
+    })
+    
+    return jsonify(result)
+
+@app.route('/api/getAvailableSeats/<int:route_id>', methods=['GET'])
+def get_available_seats(route_id):
+    result = call_cpp_logic({
+        'cmd': 'getAvailableSeats',
+        'routeID': str(route_id)
+    })
+    
+    return jsonify(result if isinstance(result, list) else [])
+
+@app.route('/api/getBookedSeats', methods=['GET'])
+def get_booked_seats():
+    route_id = request.args.get('route_id', 1, type=int)
+    result = call_cpp_logic({
+        'cmd': 'getBookedSeats',
+        'routeID': str(route_id)
+    })
+    
+    return jsonify(result if isinstance(result, list) else [])
+
+# =======================
+# Booking Management APIs
+# =======================
+@app.route('/api/bookSeats', methods=['POST'])
+def book_seats():
     data = request.json
-    user_name = data.get('user_name', '').strip()
-    seats = data.get('seats', 0)
+    route_id = data.get('routeID')
     route_info = data.get('route_info', '')
-    price = data.get('price', 0)
-
-    if not user_name or seats <= 0:
+    user_id = data.get('userID', '').strip()
+    seat_ids = data.get('seatIDs', [])
+    price_per_seat = data.get('pricePerSeat', 0)
+    
+    if not user_id or not seat_ids:
         return jsonify({'error': 'Invalid booking data'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'bookSeats',
+        'routeID': str(route_id),
+        'routeInfo': route_info,
+        'userID': user_id,
+        'seatIDs': seat_ids,
+        'pricePerSeat': str(price_per_seat)
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    return jsonify(result)
 
-    if USE_DB:
-        booking = Booking(
-            route_id=data.get('route_id', 0),
-            user_name=user_name,
-            seats_booked=seats,
-            total_price=price
-        )
-        db.session.add(booking)
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'booking_id': booking.id,
-            'message': f'Booking confirmed for {user_name}'
-        })
-    else:
-        save_booking_to_file(route_info, user_name, seats, price)
-        return jsonify({
-            'success': True,
-            'message': f'Booking confirmed for {user_name}'
-        })
+@app.route('/api/cancelBooking', methods=['POST'])
+def cancel_booking():
+    data = request.json
+    booking_id = data.get('bookingID', '').strip()
+    user_id = data.get('userID', '').strip()
+    
+    if not booking_id or not user_id:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'cancelBooking',
+        'bookingID': booking_id,
+        'userID': user_id
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/getBooking/<booking_id>', methods=['GET'])
+def get_booking(booking_id):
+    result = call_cpp_logic({
+        'cmd': 'getBooking',
+        'bookingID': booking_id
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 404
+    return jsonify(result)
 
 @app.route('/api/listBookings', methods=['GET'])
 def list_bookings():
     password = request.args.get('password')
     if password != ADMIN_PASSWORD:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    result = call_cpp_logic({'cmd': 'getAllBookings'})
+    return jsonify(result if isinstance(result, list) else [])
 
-    if USE_DB:
-        bookings = Booking.query.order_by(Booking.booked_at.desc()).all()
-        return jsonify([b.to_dict() for b in bookings])
-    else:
-        return jsonify(load_bookings_from_file())
+@app.route('/api/getUserBookings/<user_id>', methods=['GET'])
+def get_user_bookings(user_id):
+    result = call_cpp_logic({
+        'cmd': 'getUserBookings',
+        'userID': user_id
+    })
+    
+    return jsonify(result if isinstance(result, list) else [])
 
-@app.route('/api/adminLogin', methods=['POST'])
-def admin_login():
+# =======================
+# Seat Reservation APIs
+# =======================
+@app.route('/api/reserveSeat', methods=['POST'])
+def reserve_seat():
     data = request.json
-    password = data.get('password', '')
+    seat_id = data.get('seatID', '').strip()
+    user_id = data.get('userID', '').strip()
+    
+    if not seat_id or not user_id:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'reserveSeat',
+        'seatID': seat_id,
+        'userID': user_id
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/releaseSeat', methods=['POST'])
+def release_seat():
+    data = request.json
+    seat_id = data.get('seatID', '').strip()
+    user_id = data.get('userID', '').strip()
+    
+    if not seat_id or not user_id:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'releaseSeat',
+        'seatID': seat_id,
+        'userID': user_id
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+# =======================
+# Route Management APIs
+# =======================
+@app.route('/api/listRoutes', methods=['GET'])
+def list_routes():
+    routes = load_routes_from_file()
+    # Initialize seats for each route
+    for route in routes:
+        call_cpp_logic({
+            'cmd': 'initSeats',
+            'routeID': str(route['id'])
+        })
+    return jsonify(routes)
+
+@app.route('/api/addRoute', methods=['POST'])
+def add_route():
+    data = request.json
+    if data.get('password') != ADMIN_PASSWORD:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    from_city = data.get('from', '').strip()
+    to_city = data.get('to', '').strip()
+    distance = data.get('distance', 0)
+    ticket_price = data.get('ticket_price', None)
+    coords = data.get('coords', [])
+    
+    if not from_city or not to_city or distance <= 0:
+        return jsonify({'error': 'Invalid route data'}), 400
+    
+    coords_str = json.dumps(coords)
+    price_str = str(ticket_price) if ticket_price else ''
+    line_to_write = f"{from_city}|{to_city}|{distance}|{price_str}|{coords_str}\n"
+    
+    with open('backend/routes.txt', 'a') as f:
+        f.write(line_to_write)
+    
+    # Get the new route ID
+    routes = load_routes_from_file()
+    new_route_id = len(routes)
+    
+    # Initialize seats for the new route
+    call_cpp_logic({
+        'cmd': 'initSeats',
+        'routeID': str(new_route_id)
+    })
+    
+    return jsonify({'success': True, 'id': new_route_id})
+
+@app.route('/api/removeRoute', methods=['POST'])
+def remove_route():
+    data = request.json
+    if data.get('password') != ADMIN_PASSWORD:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    return jsonify({'error': 'Remove not supported in file mode'}), 400
+
+# =======================
+# Admin APIs
+# =======================
+@app.route('/api/adminLogin', methods=['POST', 'OPTIONS'])
+def admin_login():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    data = request.get_json(force=True)
+    password = str(data.get('password', '')).strip()
+    
+    # Check admin password
     if password == ADMIN_PASSWORD:
         return jsonify({
-            'success': True,
-            'token': 'simple-token-' + password[:4]
+            'success': True, 
+            'token': 'admin-token',
+            'message': f'Admin login successful'
         })
-    return jsonify({'error': 'Invalid password'}), 401
-
+    
+    return jsonify({
+        'success': False, 
+        'error': 'Invalid password. Hint: Default password is admin123'
+    }), 401
 # =======================
-# Initialize Database
+# Initialize & Run
 # =======================
-if USE_DB:
-    with app.app_context():
-        db.create_all()
-        print("Database initialized")
-
 if __name__ == '__main__':
-    print(f"Running in {'DATABASE' if USE_DB else 'FILE'} mode")
+    print(f"Running in FILE mode with C++ backend")
     print(f"Admin password: {ADMIN_PASSWORD}")
+    
+    # Initialize seats for existing routes
+    routes = load_routes_from_file()
+    for route in routes:
+        call_cpp_logic({
+            'cmd': 'initSeats',
+            'routeID': str(route['id'])
+        })
+    print(f"Initialized seats for {len(routes)} routes")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
-
