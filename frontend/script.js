@@ -284,47 +284,92 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     
     resultsDiv.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Searching...';
 
-    // Find matching route
-    const matchedRoute = allRoutes.find(r => 
-        r.from.toLowerCase() === from.toLowerCase() && 
-        r.to.toLowerCase() === to.toLowerCase()
-    );
-    
-    if (!matchedRoute) {
-        resultsDiv.innerHTML = '<div class="alert alert-warning mb-0">⚠️ No direct route found</div>';
-        currentRoute = null;
-        document.getElementById('bookingCard').style.display = 'none';
-        showNotification('⚠️ No direct route found for ' + from + ' to ' + to, 'warning');
-        return;
-    }
-
-    currentRoute = {
-        ...matchedRoute,
-        fare: matchedRoute.ticket_price || (matchedRoute.distance * 0.5)
-    };
-    
-    displayRoute(currentRoute);
-
-    // Show booking form only if user exists
-    if (currentUser) {
-        document.getElementById('bookingCard').style.display = 'block';
-        await loadSeatsForRoute(matchedRoute.id);
-        showNotification(`✅ Route found! ${from} → ${to}`, 'success');
-    } else {
-        showNotification('⚠️ Please login first to book tickets', 'info');
+    try {
+        // Call backend route search with pathfinding
+        const response = await fetch(`${API_BASE}/searchRoute?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            resultsDiv.innerHTML = '<div class="alert alert-warning mb-0">⚠️ No route found</div>';
+            currentRoute = null;
+            document.getElementById('bookingCard').style.display = 'none';
+            showNotification('⚠️ No route found connecting ' + from + ' to ' + to, 'warning');
+            return;
+        }
+        
+        // Check if it's a direct route or multi-hop
+        const isDirectRoute = data.routePath.length === 1;
+        const firstRoute = data.routePath[0];
+        
+        currentRoute = {
+            id: firstRoute.routeID,
+            from: from,
+            to: to,
+            distance: data.totalDistance,
+            fare: data.totalFare,
+            isDirectRoute: isDirectRoute,
+            routePath: data.routePath,
+            coords: firstRoute.coords || []
+        };
+        
+        displayRoute(currentRoute);
+        
+        // Show booking form only for direct routes and if user exists
+        if (currentUser) {
+            if (isDirectRoute) {
+                document.getElementById('bookingCard').style.display = 'block';
+                await loadSeatsForRoute(firstRoute.routeID);
+                showNotification(`✅ Direct route found! ${from} → ${to}`, 'success');
+            } else {
+                document.getElementById('bookingCard').style.display = 'none';
+                showNotification(`✅ Route found with ${data.routePath.length} leg(s)! ${from} → ${to}`, 'info');
+            }
+        } else {
+            showNotification('⚠️ Please login first to book tickets', 'info');
+        }
+    } catch (err) {
+        console.error('Search error:', err);
+        resultsDiv.innerHTML = '<div class="alert alert-danger mb-0">❌ Error searching routes</div>';
+        showNotification('❌ Error searching routes', 'danger');
     }
 });
 
 function displayRoute(route) {
     const resultsDiv = document.getElementById('results');
 
+    let routeDetails = '';
+    if (route.isDirectRoute) {
+        routeDetails = `<p><strong>Direct Route</strong></p>`;
+    } else {
+        const stops = [route.from];
+        route.routePath.forEach(r => {
+            stops.push(r.to);
+        });
+        routeDetails = `
+            <p><strong>Route with ${route.routePath.length} leg(s):</strong><br>
+            <small>${stops.join(' → ')}</small></p>
+            <details class="mb-2">
+                <summary style="cursor: pointer; color: #1877f2; font-weight: 600;">View all segments</summary>
+                <div style="margin-top: 10px; padding: 10px; background-color: #f0f2f5; border-radius: 6px; font-size: 0.9em;">
+                    ${route.routePath.map((r, i) => `
+                        <div style="margin-bottom: 8px;">
+                            <strong>${i + 1}.</strong> ${r.from} → ${r.to} 
+                            <span style="color: #65676b;">(${r.distance.toFixed(2)} km, Rs.${r.ticketPrice.toFixed(2)})</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </details>
+        `;
+    }
+
     resultsDiv.innerHTML = `
         <div class="route-info fade-in">
             <h6>Route Found!</h6>
-            <p><strong>Path:</strong> ${route.from} → ${route.to}</p>
+            <p><strong>From:</strong> ${route.from} <strong>To:</strong> ${route.to}</p>
+            ${routeDetails}
             <div class="mb-2">
                 <span class="badge bg-primary">Distance: ${route.distance.toFixed(2)} km</span>
-                <span class="badge bg-success">Fare: $${route.fare.toFixed(2)}</span>
+                <span class="badge bg-success">Total Fare: Rs.${route.fare.toFixed(2)}</span>
             </div>
         </div>
     `;
@@ -348,7 +393,7 @@ function displayRouteOnMap(route) {
 
         const polyline = L.polyline(
             route.coords.map(c => [c.lat, c.lng]), 
-            {color:'blue', weight:4, opacity:0.7}
+            {color: route.isDirectRoute ? '#1877f2' : '#31a24c', weight:4, opacity:0.7}
         ).addTo(routeLayer);
         
         map.fitBounds(polyline.getBounds());

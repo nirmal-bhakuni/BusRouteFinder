@@ -399,6 +399,24 @@ def remove_route():
     
     return jsonify({'error': 'Remove not supported in file mode'}), 400
 
+@app.route('/api/searchRoute', methods=['GET'])
+def search_route():
+    from_city = request.args.get('from', '').strip()
+    to_city = request.args.get('to', '').strip()
+    
+    if not from_city or not to_city:
+        return jsonify({'error': 'Missing from or to parameter'}), 400
+    
+    result = call_cpp_logic({
+        'cmd': 'findRoute',
+        'from': from_city,
+        'to': to_city
+    })
+    
+    if 'error' in result:
+        return jsonify(result), 404
+    return jsonify(result)
+
 # =======================
 # Admin APIs
 # =======================

@@ -67,12 +67,17 @@ map<string, Booking> bookings; // bookingID -> Booking
 map<int, Route> routes; // routeID -> Route
 int nextBookingID = 1;
 
+// For route search - built from routes.txt
+map<string, vector<int>> routeGraph; // lowercase stop -> list of route IDs
+map<int, Route> allStoredRoutes; // routeID -> Route (from routes.txt)
+
 // ========================
 // Data Persistence
 // ========================
 const string USERS_FILE = "backend/data_users.txt";
 const string BOOKINGS_FILE = "backend/data_bookings.txt";
 const string SEATS_FILE = "backend/data_seats.txt";
+const string ROUTES_FILE = "backend/routes.txt";
 
 void saveUsers() {
     ofstream file(USERS_FILE);
@@ -238,6 +243,101 @@ string toLowerCase(const string& str) {
     string result = str;
     transform(result.begin(), result.end(), result.begin(), ::tolower);
     return result;
+}
+
+// Load routes from routes.txt
+void loadRoutesFromFile() {
+    allStoredRoutes.clear();
+    routeGraph.clear();
+    
+    ifstream file(ROUTES_FILE);
+    if (!file.is_open()) return;
+    
+    string line;
+    int routeID = 1;
+    while (getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        
+        size_t pos1 = line.find('|');
+        size_t pos2 = line.find('|', pos1 + 1);
+        size_t pos3 = line.find('|', pos2 + 1);
+        size_t pos4 = line.find('|', pos3 + 1);
+        
+        if (pos1 == string::npos || pos2 == string::npos || pos3 == string::npos) continue;
+        
+        string from = line.substr(0, pos1);
+        string to = line.substr(pos1 + 1, pos2 - pos1 - 1);
+        double distance = stod(line.substr(pos2 + 1, pos3 - pos2 - 1));
+        
+        double ticketPrice = 0;
+        string priceStr = line.substr(pos3 + 1, pos4 - pos3 - 1);
+        if (!priceStr.empty()) {
+            try {
+                ticketPrice = stod(priceStr);
+            } catch (...) {
+                ticketPrice = distance * 0.5;
+            }
+        } else {
+            ticketPrice = distance * 0.5;
+        }
+        
+        Route route = {routeID, from, to, distance, ticketPrice, {}};
+        allStoredRoutes[routeID] = route;
+        
+        string fromLower = toLowerCase(from);
+        routeGraph[fromLower].push_back(routeID);
+        
+        routeID++;
+    }
+    file.close();
+}
+
+struct PathNode {
+    string stop;
+    vector<int> path;
+};
+
+vector<int> findRoutePath(const string& startStop, const string& endStop) {
+    string start = toLowerCase(startStop);
+    string end = toLowerCase(endStop);
+    
+    if (start == end) return {};
+    if (routeGraph.find(start) == routeGraph.end()) return {};
+    
+    queue<PathNode> q;
+    set<string> visited;
+    
+    q.push({start, {}});
+    visited.insert(start);
+    
+    while (!q.empty()) {
+        PathNode current = q.front();
+        q.pop();
+        
+        if (routeGraph.find(current.stop) != routeGraph.end()) {
+            for (int routeID : routeGraph[current.stop]) {
+                if (allStoredRoutes.find(routeID) == allStoredRoutes.end()) continue;
+                
+                Route& route = allStoredRoutes[routeID];
+                string nextStop = toLowerCase(route.to);
+                
+                if (nextStop == end) {
+                    vector<int> result = current.path;
+                    result.push_back(routeID);
+                    return result;
+                }
+                
+                if (visited.find(nextStop) == visited.end()) {
+                    visited.insert(nextStop);
+                    vector<int> newPath = current.path;
+                    newPath.push_back(routeID);
+                    q.push({nextStop, newPath});
+                }
+            }
+        }
+    }
+    
+    return {};
 }
 
 // ========================
@@ -667,6 +767,7 @@ int main(int argc, char* argv[]) {
     loadUsers();
     loadBookings();
     loadSeatState();
+    loadRoutesFromFile();
 
     string cmd = extractValue(input, "cmd");
     
@@ -812,6 +913,46 @@ int main(int argc, char* argv[]) {
             cout << "{\"success\":true,\"message\":\"Seat released\"}" << endl;
         } else {
             cout << "{\"error\":\"Cannot release seat\"}" << endl;
+        }
+    }
+    
+    else if (cmd == "findRoute") {
+        string from = extractValue(input, "from");
+        string to = extractValue(input, "to");
+        
+        vector<int> path = findRoutePath(from, to);
+        
+        if (path.empty()) {
+            cout << "{\"error\":\"No route found\"}" << endl;
+        } else {
+            ostringstream oss;
+            oss << "{\"success\":true,\"routePath\":[";
+            
+            double totalDistance = 0;
+            double totalFare = 0;
+            
+            for (size_t i = 0; i < path.size(); i++) {
+                int routeID = path[i];
+                if (allStoredRoutes.find(routeID) != allStoredRoutes.end()) {
+                    Route& route = allStoredRoutes[routeID];
+                    if (i > 0) oss << ",";
+                    oss << "{\"routeID\":" << routeID 
+                        << ",\"from\":\"" << route.from << "\""
+                        << ",\"to\":\"" << route.to << "\""
+                        << ",\"distance\":" << fixed << setprecision(2) << route.distance
+                        << ",\"ticketPrice\":" << fixed << setprecision(2) << route.ticketPrice
+                        << "}";
+                    totalDistance += route.distance;
+                    totalFare += route.ticketPrice;
+                }
+            }
+            
+            oss << "],\"totalDistance\":" << fixed << setprecision(2) << totalDistance
+                << ",\"totalFare\":" << fixed << setprecision(2) << totalFare
+                << ",\"stops\":" << (int)path.size()
+                << "}";
+            
+            cout << oss.str() << endl;
         }
     }
     
