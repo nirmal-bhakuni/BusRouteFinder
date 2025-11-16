@@ -663,6 +663,11 @@ int main(int argc, char* argv[]) {
         input += line;
     }
     
+    // Load persisted data so this process knows about existing users/bookings/seats
+    loadUsers();
+    loadBookings();
+    loadSeatState();
+
     string cmd = extractValue(input, "cmd");
     
     if (cmd.empty()) {
@@ -711,6 +716,8 @@ int main(int argc, char* argv[]) {
         string routeIDStr = extractValue(input, "routeID");
         int routeID = routeIDStr.empty() ? 1 : stoi(routeIDStr);
         initializeSeatsForRoute(routeID);
+        // Persist seat state after initialization so subsequent calls see it
+        saveSeatState();
         cout << "{\"success\":true,\"message\":\"Seats initialized for route " << routeID << "\"}" << endl;
     }
     else if (cmd == "getSeats") {
