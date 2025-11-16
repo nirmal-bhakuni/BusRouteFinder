@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bus Route Finder — Glass Dark</title>
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="app-shell">
+
+        <!-- Top Navigation -->
+        <header class="topbar glass">
+            <div class="brand">
+                🚌 <span class="brand-text">BusRoute</span>
+            </div>
+
+            <nav class="top-actions">
+                <button id="openSearchBtn" class="btn small">Search</button>
+                <a href="admin.html" class="btn small ghost">Admin</a>
+            </nav>
+        </header>
+
+        <!-- Main Layout -->
+        <main class="layout">
+
+            <!-- Left Side Panel -->
+            <aside class="panel left-panel glass" id="leftPanel">
+
+                <!-- Search Section -->
+                <section class="search-section">
+                    <h2>Find Route</h2>
+
+                    <form id="searchForm" class="form">
+                        <label class="field">
+                            <span>From</span>
+                            <input id="fromCity" required placeholder="e.g., Delhi" />
+                        </label>
+
+                        <label class="field">
+                            <span>To</span>
+                            <input id="toCity" required placeholder="e.g., Mumbai" />
+                        </label>
+
+                        <div class="controls">
+                            <button type="submit" class="btn primary">Search</button>
+                            <button id="clearMap" type="button" class="btn ghost">Clear</button>
+                        </div>
+                    </form>
+
+                    <div id="results" class="results"></div>
+
+                    <!-- Booking UI -->
+                    <div id="bookingCard" class="booking-card" style="display:none;">
+                        <h4>Book Tickets</h4>
+
+                        <form id="bookingForm">
+                            <label class="field">
+                                <span>Your Name</span>
+                                <input id="userName" required />
+                            </label>
+
+                            <label class="field">
+                                <span>Seats</span>
+                                <input id="seats" type="number" value="1" min="1" />
+                            </label>
+
+                            <div class="price-row">
+                                Total: <strong id="totalPrice">$0.00</strong>
+                            </div>
+
+                            <button class="btn success" type="submit">Confirm Booking</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- All Routes Section -->
+                <section class="routes-list-section">
+                    <h3>All Routes</h3>
+                    <div id="allRoutes" class="routes-list">Loading...</div>
+                </section>
+            </aside>
+
+            <!-- Map Panel -->
+            <section class="map-panel glass">
+                <div class="map-topbar">
+                    <div class="map-controls">
+                        <button id="zoomToAll" class="btn tiny">Zoom All</button>
+                        <button id="fitRoute" class="btn tiny">Fit Route</button>
+                    </div>
+                    <div class="legend">Map data © OpenStreetMap</div>
+                </div>
+
+                <div id="map" class="map"></div>
+            </section>
+
+            <!-- Right Panel -->
+            <aside class="panel right-panel glass" id="rightPanel">
+
+                <!-- Stats -->
+                <section class="stats">
+                    <h3>Quick Info</h3>
+
+                    <div class="stat-grid">
+                        <div class="stat">
+                            <div class="num" id="statRoutes">—</div>
+                            <div class="label">Routes</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="num" id="statBookings">—</div>
+                            <div class="label">Bookings</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="num" id="statAvgFare">—</div>
+                            <div class="label">Avg Fare</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Bookings -->
+                <section class="recent-bookings">
+                    <h3>Recent Bookings</h3>
+                    <div id="recentBookings">Loading...</div>
+                </section>
+            </aside>
+
+        </main>
+
+        <footer class="bottombar glass">
+            Made with ❤️ · Glass Dark UI · Smooth Transitions
+        </footer>
+
+    </div>
+
+    <!-- Leaflet Map JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Custom JS -->
+    <script src="script.js"></script>
+</body>
+</html>
