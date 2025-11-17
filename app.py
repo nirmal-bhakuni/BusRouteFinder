@@ -440,11 +440,9 @@ def admin_login():
         'success': False, 
         'error': 'Invalid password. Hint: Default password is admin123'
     }), 401
-
 # =======================
 # Initialize & Run
 # =======================
-
 if __name__ == '__main__':
     print(f"Running in FILE mode with C++ backend")
     print(f"Admin password: {ADMIN_PASSWORD}")

@@ -318,6 +318,7 @@ R17S6|Available||17|
 R17S7|Available||17|
 R17S8|Available||17|
 R17S9|Available||17|
+<<<<<<< HEAD
 R18S1|Available||18|
 R18S10|Available||18|
 R18S11|Available||18|
@@ -398,6 +399,8 @@ R19S6|Available||19|
 R19S7|Available||19|
 R19S8|Available||19|
 R19S9|Available||19|
+=======
+>>>>>>> parent of 493963f (Restore clean version)
 R1S1|Available||1|
 R1S10|Available||1|
 R1S11|Available||1|
@@ -479,13 +482,13 @@ R2S7|Available||2|
 R2S8|Available||2|
 R2S9|Available||2|
 R3S1|Available||3|
-R3S10|Available||3|
-R3S11|Available||3|
-R3S12|Available||3|
+R3S10|Booked|1|3|BK1
+R3S11|Booked|1|3|BK1
+R3S12|Booked|2|3|BK2
 R3S13|Available||3|
 R3S14|Available||3|
 R3S15|Available||3|
-R3S16|Available||3|
+R3S16|Booked|2|3|BK2
 R3S17|Available||3|
 R3S18|Available||3|
 R3S19|Available||3|
